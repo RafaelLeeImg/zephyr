@@ -22,11 +22,9 @@
 #define AHT20_CMD_GET_STATUS 0x71
 #define AHT20_CMD_INITIALIZE 0xBE
 
-struct aht20_result_type {
-	uint32_t humidity;      // proportion
-	uint32_t temperature;   // in Celsius
-	uint8_t status;         /* Sensor status */
-};
+#define AHT20_FULL_RANGE_BITS 20
+#define AHT20_TEMPERATURE_RANGE 200
+#define AHT20_TEMPERATURE_OFFSET 50.0
 
 typedef union {
 	struct {
@@ -40,7 +38,7 @@ typedef union {
 } __attribute__((__packed__)) aht20_status;
 
 struct aht20_data {
-	const struct device *i2c;
+	struct i2c_dt_spec bus;
 	uint32_t humidity;
 	uint32_t temperature;
 };
