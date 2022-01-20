@@ -46,7 +46,7 @@ static int aht20_init(const struct device *dev)
 {
 	struct aht20_data *drv_data = dev->data;
 
-	k_busy_wait(40000); // wait for 40ms
+	k_sleep(K_MSEC(40)); // wait for 40ms
 
 	int ret = 0;
 	aht20_status sensor_status = { 0 };
@@ -91,12 +91,12 @@ static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan
 	aht20_status sensor_status = { 0 };
 
 	// tested with AHT20, 40ms is enough for measuring, datasheet said wait 80ms
-	k_usleep(40000);
+	k_sleep(K_MSEC(40));
 	bool wait = false;
 
 	do {
 		if (wait) {
-			k_usleep(5000); // skip waiting for the first time, less kernel call involve
+			k_sleep(K_MSEC(5)); // skip waiting for the first time, less kernel call involve
 		}
 		wait = true;
 		rc = i2c_read_dt(&drv_data->bus, rx_buf, AHT20_STATUS_LENGTH + AHT20_READ_LENGTH);
