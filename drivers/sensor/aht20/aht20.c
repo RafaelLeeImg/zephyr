@@ -16,7 +16,7 @@
 
 #define AHT20_STATUS_LENGTH 1
 #define AHT20_READ_LENGTH 6
-#define AHT20_CRC_POLY 0x31 // polynomial 1 + x^4 + x^5 + x^8
+#define AHT20_CRC_POLY 0x31 /* polynomial 1 + x^4 + x^5 + x^8 */
 #define AHT20_CRC_INIT 0xff
 
 #define AHT20_CMD_RESET 0xBA
@@ -32,11 +32,11 @@
 
 typedef union {
 	struct {
-		uint8_t : 3;            // bit [0:2]
-		uint8_t cal_enable : 1; // bit [3]
-		uint8_t : 1;            // bit [4]
-		uint8_t : 2;            // bit [5:6], AHT20 datasheet v1.1 removed 2 mode bits
-		uint8_t busy : 1;       // bit [7]
+		uint8_t : 3;            /* bit [0:2] */
+		uint8_t cal_enable : 1; /* bit [3] */
+		uint8_t : 1;            /* bit [4] */
+		uint8_t : 2;            /* bit [5:6], AHT20 datasheet v1.1 removed 2 mode bits */
+		uint8_t busy : 1;       /* bit [7] */
 	};
 	uint8_t all;
 } __attribute__((__packed__)) aht20_status;
@@ -77,7 +77,7 @@ static int aht20_init(const struct device *dev)
 {
 	struct aht20_data *drv_data = dev->data;
 
-	k_sleep(K_MSEC(40)); // wait for 40ms
+	k_sleep(K_MSEC(40)); /* wait for 40ms */
 
 	int ret = 0;
 	aht20_status sensor_status = { 0 };
@@ -120,7 +120,7 @@ static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan
 
 	aht20_status sensor_status = { 0 };
 
-	// tested with AHT20, 40ms is enough for measuring, datasheet said wait 80ms
+	/* tested with AHT20, 40ms is enough for measuring, datasheet said wait 80ms */
 	k_sleep(K_MSEC(40));
 
 	while (1) {
@@ -136,11 +136,11 @@ static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan
 		}
 	}
 
-	// the read 7 bytes contains the following data:
-	// status: 8 bits
-	// humidity: 20 bits
-	// temperature: 20 bits
-	// crc8: 8 bits
+	/* the read 7 bytes contains the following data: */
+	/* status: 8 bits */
+	/* humidity: 20 bits */
+	/* temperature: 20 bits */
+	/* crc8: 8 bits */
 	drv_data->humidity = sys_get_be24(rx_buf + 1);
 	drv_data->humidity >>= 24 - AHT20_FULL_RANGE_BITS;
 	drv_data->temperature = sys_get_be24(rx_buf + 3);
