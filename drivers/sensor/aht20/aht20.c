@@ -6,13 +6,13 @@
 
 #define DT_DRV_COMPAT asair_aht20
 
-#include <kernel.h>
-#include <device.h>
-#include <drivers/i2c.h>
-#include <drivers/sensor.h>
-#include <logging/log.h>
-#include <sys/crc.h>
-#include <sys/byteorder.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/sensor.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/crc.h>
 
 #define AHT20_STATUS_LENGTH 1
 #define AHT20_READ_LENGTH 6
