@@ -15,28 +15,28 @@
 #include <zephyr/sys/crc.h>
 
 #define AHT20_STATUS_LENGTH 1
-#define AHT20_READ_LENGTH 6
-#define AHT20_CRC_POLY 0x31 /* polynomial 1 + x^4 + x^5 + x^8 */
-#define AHT20_CRC_INIT 0xff
+#define AHT20_READ_LENGTH   6
+#define AHT20_CRC_POLY	    0x31 /* polynomial 1 + x^4 + x^5 + x^8 */
+#define AHT20_CRC_INIT	    0xff
 
-#define AHT20_CMD_RESET 0xBA
-#define AHT20_CMD_TRIGGER_MEASURE 0xAC
+#define AHT20_CMD_RESET		     0xBA
+#define AHT20_CMD_TRIGGER_MEASURE    0xAC
 #define AHT20_TRIGGER_MEASURE_BYTE_0 0x33
 #define AHT20_TRIGGER_MEASURE_BYTE_1 0x00
-#define AHT20_CMD_GET_STATUS 0x71
-#define AHT20_CMD_INITIALIZE 0xBE
+#define AHT20_CMD_GET_STATUS	     0x71
+#define AHT20_CMD_INITIALIZE	     0xBE
 
-#define AHT20_FULL_RANGE_BITS 20
-#define AHT20_TEMPERATURE_RANGE 200
+#define AHT20_FULL_RANGE_BITS	 20
+#define AHT20_TEMPERATURE_RANGE	 200
 #define AHT20_TEMPERATURE_OFFSET 50.0
 
 typedef union {
 	struct {
-		uint8_t : 3;            /* bit [0:2] */
+		uint8_t : 3;		/* bit [0:2] */
 		uint8_t cal_enable : 1; /* bit [3] */
-		uint8_t : 1;            /* bit [4] */
-		uint8_t : 2;            /* bit [5:6], AHT20 datasheet v1.1 removed 2 mode bits */
-		uint8_t busy : 1;       /* bit [7] */
+		uint8_t : 1;		/* bit [4] */
+		uint8_t : 2;		/* bit [5:6], AHT20 datasheet v1.1 removed 2 mode bits */
+		uint8_t busy : 1;	/* bit [7] */
 	};
 	uint8_t all;
 } __attribute__((__packed__)) aht20_status;
@@ -62,7 +62,7 @@ static int aht20_channel_get(const struct device *dev, enum sensor_channel chan,
 		break;
 	case SENSOR_CHAN_AMBIENT_TEMP:
 		temperature = (float)drv_data->temperature / (1 << AHT20_FULL_RANGE_BITS) *
-			      AHT20_TEMPERATURE_RANGE -
+				      AHT20_TEMPERATURE_RANGE -
 			      AHT20_TEMPERATURE_OFFSET;
 		val->val1 = (int32_t)temperature;
 		val->val2 = (temperature - val->val1) * 1000000LL;
@@ -80,17 +80,18 @@ static int aht20_init(const struct device *dev)
 	k_sleep(K_MSEC(40)); /* wait for 40ms */
 
 	int ret = 0;
-	aht20_status sensor_status = { 0 };
+	aht20_status sensor_status = {0};
 
-	static uint8_t const inquire_status_seq[] = { AHT20_CMD_GET_STATUS };
+	static uint8_t const inquire_status_seq[] = {AHT20_CMD_GET_STATUS};
 
-	ret = i2c_write_read_dt(&drv_data->bus, inquire_status_seq, sizeof(inquire_status_seq), &sensor_status.all, AHT20_STATUS_LENGTH);
+	ret = i2c_write_read_dt(&drv_data->bus, inquire_status_seq, sizeof(inquire_status_seq),
+				&sensor_status.all, AHT20_STATUS_LENGTH);
 	if (0 != ret) {
 		LOG_ERR("Failed to inquire status");
 	}
 
 	if (!sensor_status.cal_enable) {
-		static uint8_t const initialize_seq[] = { AHT20_CMD_INITIALIZE };
+		static uint8_t const initialize_seq[] = {AHT20_CMD_INITIALIZE};
 		ret = i2c_write_dt(&drv_data->bus, initialize_seq, sizeof(initialize_seq));
 		if (0 != ret) {
 			LOG_ERR("Failed to inquire status");
@@ -108,9 +109,9 @@ static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL || chan == SENSOR_CHAN_AMBIENT_TEMP ||
 			chan == SENSOR_CHAN_HUMIDITY);
 
-	uint8_t tx_buf[] = { AHT20_CMD_TRIGGER_MEASURE, AHT20_TRIGGER_MEASURE_BYTE_0,
-			     AHT20_TRIGGER_MEASURE_BYTE_1 };
-	uint8_t rx_buf[7] = { 0 };
+	uint8_t tx_buf[] = {AHT20_CMD_TRIGGER_MEASURE, AHT20_TRIGGER_MEASURE_BYTE_0,
+			    AHT20_TRIGGER_MEASURE_BYTE_1};
+	uint8_t rx_buf[7] = {0};
 
 	int rc = i2c_write_dt(&drv_data->bus, tx_buf, sizeof(tx_buf));
 
@@ -118,7 +119,7 @@ static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan
 		return -EIO;
 	}
 
-	aht20_status sensor_status = { 0 };
+	aht20_status sensor_status = {0};
 
 	/* tested with AHT20, 40ms is enough for measuring, datasheet said wait 80ms */
 	k_sleep(K_MSEC(40));
@@ -160,11 +161,11 @@ static const struct sensor_driver_api aht20_driver_api = {
 	.channel_get = aht20_channel_get,
 };
 
-#define AHT20_INIT(n)									\
-	static struct aht20_data aht20_data_##n = {					\
-		.bus = I2C_DT_SPEC_INST_GET(n),						\
-	};										\
-	DEVICE_DT_INST_DEFINE(n, &aht20_init, NULL, &aht20_data_##n, NULL, POST_KERNEL,	\
+#define AHT20_INIT(n)                                                                              \
+	static struct aht20_data aht20_data_##n = {                                                \
+		.bus = I2C_DT_SPEC_INST_GET(n),                                                    \
+	};                                                                                         \
+	DEVICE_DT_INST_DEFINE(n, &aht20_init, NULL, &aht20_data_##n, NULL, POST_KERNEL,            \
 			      CONFIG_SENSOR_INIT_PRIORITY, &aht20_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(AHT20_INIT)
