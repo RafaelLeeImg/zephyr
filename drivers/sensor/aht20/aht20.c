@@ -14,10 +14,11 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/crc.h>
 
-#define AHT20_STATUS_LENGTH 1
-#define AHT20_READ_LENGTH   6
-#define AHT20_CRC_POLY	    0x31 /* polynomial 1 + x^4 + x^5 + x^8 */
-#define AHT20_CRC_INIT	    0xff
+#define AHT20_STATUS_LENGTH	1
+#define AHT20_READ_LENGTH	6
+#define AHT20_TOTAL_READ_LENGTH 7
+#define AHT20_CRC_POLY		0x31 /* polynomial 1 + x^4 + x^5 + x^8 */
+#define AHT20_CRC_INIT		0xff
 
 #define AHT20_CMD_RESET		     0xBA
 #define AHT20_CMD_TRIGGER_MEASURE    0xAC
@@ -33,10 +34,10 @@
 typedef union {
 	struct {
 		uint8_t: 3;		/* bit [0:2] */
-		uint8_t cal_enable : 1; /* bit [3] */
+		uint8_t cal_enable: 1; /* bit [3] */
 		uint8_t: 1;		/* bit [4] */
 		uint8_t: 2;		/* bit [5:6], AHT20 datasheet v1.1 removed 2 mode bits */
-		uint8_t busy : 1;	/* bit [7] */
+		uint8_t busy: 1;	/* bit [7] */
 	};
 	uint8_t all;
 } __attribute__((__packed__)) aht20_status;
@@ -68,7 +69,7 @@ static int aht20_channel_get(const struct device *dev, enum sensor_channel chan,
 		val->val2 = (temperature - val->val1) * 1000000LL;
 		break;
 	default:
-		break;
+		-ENOTSUP;
 	}
 	return 0;
 }
@@ -76,22 +77,23 @@ static int aht20_channel_get(const struct device *dev, enum sensor_channel chan,
 static int aht20_init(const struct device *dev)
 {
 	struct aht20_data *drv_data = dev->data;
+	aht20_status sensor_status = {0};
+	int ret = 0;
 
 	k_sleep(K_MSEC(40)); /* wait for 40ms */
 
-	int ret = 0;
-	aht20_status sensor_status = {0};
-
-	static uint8_t const inquire_status_seq[] = {AHT20_CMD_GET_STATUS};
+	uint8_t const inquire_status_seq[] = {AHT20_CMD_GET_STATUS};
 
 	ret = i2c_write_read_dt(&drv_data->bus, inquire_status_seq, sizeof(inquire_status_seq),
 				&sensor_status.all, AHT20_STATUS_LENGTH);
-	if (ret != 0) {
-		LOG_ERR("Failed to inquire status");
+	if (!ret) {
+		LOG_ERR("AHT20: Failed to inquire status");
+	} else {
+		LOG_INF("AHT20: Inquire status successfully");
 	}
 
 	if (!sensor_status.cal_enable) {
-		static uint8_t const initialize_seq[] = {AHT20_CMD_INITIALIZE};
+		uint8_t const initialize_seq[] = {AHT20_CMD_INITIALIZE};
 
 		ret = i2c_write_dt(&drv_data->bus, initialize_seq, sizeof(initialize_seq));
 		if (ret != 0) {
@@ -126,7 +128,7 @@ static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan
 	k_sleep(K_MSEC(40));
 
 	while (1) {
-		rc = i2c_read_dt(&drv_data->bus, rx_buf, AHT20_STATUS_LENGTH + AHT20_READ_LENGTH);
+		rc = i2c_read_dt(&drv_data->bus, rx_buf, AHT20_TOTAL_READ_LENGTH);
 		if (rc < 0) {
 			return -EIO;
 		}
@@ -148,10 +150,10 @@ static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan
 	drv_data->temperature = sys_get_be24(rx_buf + 3);
 	drv_data->temperature &= (1L << AHT20_FULL_RANGE_BITS) - 1;
 
-	uint8_t crc = crc8(rx_buf, AHT20_STATUS_LENGTH + AHT20_READ_LENGTH - 1, AHT20_CRC_POLY,
-			   AHT20_CRC_INIT, false);
+	uint8_t crc =
+		crc8(rx_buf, AHT20_TOTAL_READ_LENGTH - 1, AHT20_CRC_POLY, AHT20_CRC_INIT, false);
 
-	if (crc != rx_buf[AHT20_STATUS_LENGTH + AHT20_READ_LENGTH - 1]) {
+	if (crc != rx_buf[AHT20_TOTAL_READ_LENGTH - 1]) {
 		return -EIO;
 	}
 	return 0;
