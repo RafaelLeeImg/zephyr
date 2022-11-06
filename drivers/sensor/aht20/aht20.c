@@ -33,7 +33,7 @@
 typedef union {
 	struct {
 		uint8_t: 3;		/* bit [0:2] */
-		uint8_t cal_enable: 1; /* bit [3] */
+		uint8_t calibrated: 1;	/* bit [3] */
 		uint8_t: 1;		/* bit [4] */
 		uint8_t: 2;		/* bit [5:6], AHT20 datasheet v1.1 removed 2 mode bits */
 		uint8_t busy: 1;	/* bit [7] */
@@ -68,7 +68,7 @@ static int aht20_channel_get(const struct device *dev, enum sensor_channel chan,
 		val->val2 = (temperature - val->val1) * 1000000LL;
 		break;
 	default:
-		-ENOTSUP;
+		return -ENOTSUP;
 	}
 	return 0;
 }
@@ -85,18 +85,20 @@ static int aht20_init(const struct device *dev)
 
 	ret = i2c_write_read_dt(&drv_data->bus, inquire_status_seq, sizeof(inquire_status_seq),
 				&sensor_status.all, AHT20_STATUS_LENGTH);
-	if (!ret) {
-		LOG_ERR("AHT20: Failed to inquire status");
+	if (ret) {
+		LOG_ERR("Inquire status failed");
 	} else {
-		LOG_INF("AHT20: Inquire status successfully");
+		LOG_INF("Inquire status successfully");
 	}
 
-	if (!sensor_status.cal_enable) {
+	if (!sensor_status.calibrated) {
 		uint8_t const initialize_seq[] = {AHT20_CMD_INITIALIZE};
-
+		LOG_INF("Calibrated bit is 0, need initialization");
 		ret = i2c_write_dt(&drv_data->bus, initialize_seq, sizeof(initialize_seq));
-		if (ret != 0) {
-			LOG_ERR("Failed to inquire status");
+		if (ret) {
+			LOG_ERR("Initialization filaed");
+		} else {
+			LOG_INF("Initialization successful");
 		}
 		k_sleep(K_MSEC(10));
 	}
@@ -106,29 +108,25 @@ static int aht20_init(const struct device *dev)
 
 static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan)
 {
-	struct aht20_data *drv_data = dev->data;
-
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL || chan == SENSOR_CHAN_AMBIENT_TEMP ||
 			chan == SENSOR_CHAN_HUMIDITY);
-
 	uint8_t tx_buf[] = {AHT20_CMD_TRIGGER_MEASURE, AHT20_TRIGGER_MEASURE_BYTE_0,
 			    AHT20_TRIGGER_MEASURE_BYTE_1};
-	uint8_t rx_buf[7] = {0};
-
-	int rc = i2c_write_dt(&drv_data->bus, tx_buf, sizeof(tx_buf));
-
-	if (rc < 0) {
-		return -EIO;
-	}
-
+	uint8_t rx_buf[AHT20_TOTAL_READ_LENGTH] = {0};
 	aht20_status sensor_status = {0};
 
+	struct aht20_data *drv_data = dev->data;
+	int rc = i2c_write_dt(&drv_data->bus, tx_buf, sizeof(tx_buf));
+	if (rc < 0) {
+		LOG_ERR("I2C write failed");
+		return -EIO;
+	}
 	/* tested with AHT20, 40ms is enough for measuring, datasheet said wait 80ms */
 	k_sleep(K_MSEC(40));
-
 	while (1) {
 		rc = i2c_read_dt(&drv_data->bus, rx_buf, AHT20_TOTAL_READ_LENGTH);
 		if (rc < 0) {
+			LOG_ERR("I2C read failed");
 			return -EIO;
 		}
 		sensor_status.all = rx_buf[0];
@@ -138,7 +136,6 @@ static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan
 			break;
 		}
 	}
-
 	/* the read 7 bytes contains the following data: */
 	/* status: 8 bits */
 	/* humidity: 20 bits */
@@ -148,11 +145,10 @@ static int aht20_sample_fetch(const struct device *dev, enum sensor_channel chan
 	drv_data->humidity >>= 24 - AHT20_FULL_RANGE_BITS;
 	drv_data->temperature = sys_get_be24(rx_buf + 3);
 	drv_data->temperature &= (1L << AHT20_FULL_RANGE_BITS) - 1;
-
 	uint8_t crc =
 		crc8(rx_buf, AHT20_TOTAL_READ_LENGTH - 1, AHT20_CRC_POLY, AHT20_CRC_INIT, false);
-
 	if (crc != rx_buf[AHT20_TOTAL_READ_LENGTH - 1]) {
+		LOG_ERR("CRC error");
 		return -EIO;
 	}
 	return 0;
